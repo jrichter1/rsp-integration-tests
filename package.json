@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/jrichter1/ssp-integration-tests.git"
   },
-  "author": "jrichter",
+  "author": "Red Hat Developers",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/jrichter1/ssp-integration-tests/issues"
