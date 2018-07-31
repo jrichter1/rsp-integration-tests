@@ -37,7 +37,7 @@ describe('Discovery', () => {
        expect(beans[0].fullVersion).equals('13.0.0.Final');
     });
 
-    it('findServerBeans should find EAP', async() => {
+    it('findServerBeans should find EAP', async () => {
         // TODO
     });
 
@@ -53,28 +53,21 @@ describe('Discovery', () => {
 
     it('addDiscoveryPath should add a path to server', async () => {
         const path = await client.addDiscoveryPathSync('foo');
-
         const filled = await client.getDiscoveryPaths();
         expect(filled).deep.include(path);
 
         await client.removeDiscoveryPathSync(path);
     });
     
-    // fails with https://issues.jboss.org/browse/JBIDE-26199
     it('addDiscoveryPath should handle the same path being added twice', async function() {
-        this.timeout(4000);
-        let fail;
         const path = await client.addDiscoveryPathSync('bar');
-        try {
-            await client.addDiscoveryPathSync(path.filepath);
-        } catch(err) {
-            fail = err;
-        } finally {
-            await client.removeDiscoveryPathSync(path);
-            if (fail) {
-                expect.fail(fail);
-            }
-        }
+
+        const status = await client.addDiscoveryPathAsync(path.filepath);
+        
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
+
+        await client.removeDiscoveryPathSync(path);
     });
 
     it('removeDiscoveryPath should remove an existing path', async () => {
@@ -87,14 +80,11 @@ describe('Discovery', () => {
         expect(await client.getDiscoveryPaths()).not.deep.include(path);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26199
     it('removeDiscoveryPath should handle a non existing path', async function() {
-        this.timeout(4000);
-        try {
-            await client.removeDiscoveryPathSync('path');
-        } catch(err) {
-            expect.fail(err);
-        }
+        const status = await client.removeDiscoveryPathAsync('path');
+
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
     });
 
     it('getDiscoveryPaths should return all paths', async () => {
