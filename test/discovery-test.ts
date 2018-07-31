@@ -1,5 +1,5 @@
 import * as chai from 'chai';
-import { SSPClient } from 'ssp-client';
+import { SSPClient, Protocol } from 'ssp-client';
 import * as server from '../resources/server-util';
 import 'mocha';
 
@@ -51,23 +51,32 @@ describe('Discovery', () => {
         expect(beans[0].fullVersion).undefined;
     });
 
+    // fails with https://issues.jboss.org/browse/JBIDE-26254
+    it('findServerBeans handles invalid inputs', async () => {
+        const beans = await client.findServerBeans(null, 500);
+    });
+
     it('addDiscoveryPath should add a path to server', async () => {
         const path = await client.addDiscoveryPathSync('foo');
         const filled = await client.getDiscoveryPaths();
-        expect(filled).deep.include(path);
-
         await client.removeDiscoveryPathSync(path);
+
+        expect(filled).deep.include(path);
     });
     
-    it('addDiscoveryPath should handle the same path being added twice', async function() {
+    it('addDiscoveryPath should handle the same path being added twice', async () => {
         const path = await client.addDiscoveryPathSync('bar');
 
         const status = await client.addDiscoveryPathAsync(path.filepath);
+        await client.removeDiscoveryPathSync(path);
         
         expect(status.message).not.equal('ok');
         expect(status.severity).greaterThan(0);
+    });
 
-        await client.removeDiscoveryPathSync(path);
+    // fails with https://issues.jboss.org/browse/JBIDE-26254
+    it('addDiscoveryPath should handle invalid inputs', async () => {
+        const path = await client.addDiscoveryPathSync(null, 500);
     });
 
     it('removeDiscoveryPath should remove an existing path', async () => {
@@ -80,11 +89,16 @@ describe('Discovery', () => {
         expect(await client.getDiscoveryPaths()).not.deep.include(path);
     });
 
-    it('removeDiscoveryPath should handle a non existing path', async function() {
+    it('removeDiscoveryPath should handle a non existing path', async () => {
         const status = await client.removeDiscoveryPathAsync('path');
 
         expect(status.message).not.equal('ok');
         expect(status.severity).greaterThan(0);
+    });
+
+    // fails with https://issues.jboss.org/browse/JBIDE-26254
+    it('removeDiscoveryPath should handle invalid inputs', async () => {
+        const status = await client.removeDiscoveryPathAsync(null, 500);
     });
 
     it('getDiscoveryPaths should return all paths', async () => {

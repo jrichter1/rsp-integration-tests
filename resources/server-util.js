@@ -17,9 +17,11 @@ function downloadServer(version) {
     const url = `${baseUrl}${finalFile}`;
 
     if (fs.existsSync(path.join(serverRoot, 'bin', 'felix.jar'))) {
+        console.log('RSP server found, skipping download');
         return Promise.resolve();
     }
 
+    console.log('Downloading RSP server');
     return download(url, '.')
     .then(() => { return decompress(finalFile, serverRoot, { strip: 1 }); })
     .catch(err => { throw err; });
@@ -33,9 +35,9 @@ function startServer() {
             }
             const serverPath = path.join('bin', 'felix.jar');
             const javaPath = path.join(home, 'bin', 'java');
-            if (!serverProcess) {
-                serverProcess = cp.spawn(javaPath, ['-jar', serverPath], { cwd: serverRoot });
-            }
+            
+            console.log('Starting RSP server');
+            serverProcess = cp.spawn(javaPath, ['-jar', serverPath], { cwd: serverRoot });
             const portRegex = /.+port\s(\d+)/;
             
             serverProcess.stdout.on('data', data => {
@@ -49,6 +51,7 @@ function startServer() {
 }
 
 function stopServer() {
+    console.log('Stopping RSP server');
     serverProcess.kill();
 }
 
@@ -57,9 +60,11 @@ function getWildfly() {
     const fileName = 'wildfly-13.0.0.Final.zip';
 
     if(fs.existsSync(path.join(wildflyRoot, 'bin'))) {
+        console.log('Wildfly found, skipping download');
         return Promise.resolve();
     }
 
+    console.log('Downloading Wildfly');
     return download('http://download.jboss.org/wildfly/13.0.0.Final/wildfly-13.0.0.Final.zip', '.')
     .then(() => { return decompress(fileName, wildflyRoot, { strip: 1 })})
     .catch(err => { throw err; });
