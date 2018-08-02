@@ -153,7 +153,7 @@ describe('Server Model', () => {
         expect(status.message).equals('Server Type null not found');
     });
 
-    //fails with https://issues.jboss.org/browse/JBIDE-26257
+    // fails with https://issues.jboss.org/browse/JBIDE-26257
     it('createServer handles non-unique server ids', async () => {
         const beans = await client.findServerBeans('../wildfly');
         const handle = await client.createServerSync('../wildfly', 'fly');
@@ -179,6 +179,28 @@ describe('Server Model', () => {
         const status = await client.deleteServerAsync(handle);
         expect(status.severity).greaterThan(0);
         expect(status.message).equals(`Server not removed: ${handle.id}`);
+    });
+
+    // fails with https://issues.jboss.org/browse/JBIDE-26257
+    it('deleteServer should handle an invalid server handle', async () => {
+        let handle: Protocol.ServerHandle = {
+            id: 'foo',
+            type: {
+                description: 'foo',
+                id: 'foo',
+                visibleName: 'foo'
+            }
+        };
+        const status = await client.deleteServerAsync(handle);
+
+        expect(status.severity).greaterThan(0);
+        expect(status.message).equals(`Server not removed: ${handle.id}`);
+    });
+
+    it('deleteServer should handle a null server handle', async () => {
+        const status = await client.deleteServerAsync(null, 500);
+
+        expect(status.severity).greaterThan(0);
     });
 
     it('getServerHandles returns all server handles', async () => {

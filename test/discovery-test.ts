@@ -79,6 +79,18 @@ describe('Discovery', () => {
         const path = await client.addDiscoveryPathSync(null, 500);
     });
 
+    it('addDiscoveryPath should respond with a notification', (done) => {
+        const listener = (path: Protocol.DiscoveryPath) => {
+            if (path.filepath === 'apath') {
+                client.removeListener('discoveryPathAdded', listener);
+                client.removeDiscoveryPathSync(path);
+                done();
+            }
+        }
+        client.onDiscoveryPathAdded(listener);
+        client.addDiscoveryPathAsync('apath');
+    });
+
     it('removeDiscoveryPath should remove an existing path', async () => {
         const path = await client.addDiscoveryPathSync('baz');
 
@@ -99,6 +111,17 @@ describe('Discovery', () => {
     // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('removeDiscoveryPath should handle invalid inputs', async () => {
         const status = await client.removeDiscoveryPathAsync(null, 500);
+    });
+
+    it('removeDiscoveryPath should respond with a notification', (done) => {
+        const listener = (path: Protocol.DiscoveryPath) => {
+            if (path.filepath === 'rpath') {
+                client.removeListener('discoveryPathRemoved', listener);
+                done();
+            }
+        }
+        client.onDiscoveryPathAdded(listener);
+        client.addDiscoveryPathAsync('rpath').then(() => { client.removeDiscoveryPathSync('rpath'); });        
     });
 
     it('getDiscoveryPaths should return all paths', async () => {
