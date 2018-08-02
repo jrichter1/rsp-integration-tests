@@ -181,7 +181,6 @@ describe('Server Model', () => {
         expect(status.message).equals(`Server not removed: ${handle.id}`);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26257
     it('deleteServer should handle an invalid server handle', async () => {
         let handle: Protocol.ServerHandle = {
             id: 'foo',
@@ -197,6 +196,7 @@ describe('Server Model', () => {
         expect(status.message).equals(`Server not removed: ${handle.id}`);
     });
 
+    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('deleteServer should handle a null server handle', async () => {
         const status = await client.deleteServerAsync(null, 500);
 
