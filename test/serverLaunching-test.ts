@@ -54,6 +54,11 @@ describe('Server Launcher', () => {
         const modes = await client.getServerLaunchModes(type, 500);
     });
 
+    // fails with https://issues.jboss.org/browse/JBIDE-26254
+    it('getLaunchModes handles a null server type', async () => {
+        const modes = await client.getServerLaunchModes(null, 500);
+    });
+
     // fails with https://issues.jboss.org/browse/JBIDE-26281
     it('getRequiredLaunchAttributes returns attributes object for a valid input', async () => {
         const handle = await client.createServerSync('../wildfly', 'wildfly1');
