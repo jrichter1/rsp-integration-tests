@@ -1,23 +1,27 @@
 import * as chai from 'chai';
-import { SSPClient, Protocol } from 'ssp-client';
+import { RSPClient, Protocol } from 'rsp-client';
 import * as server from '../resources/server-util';
+import * as path from 'path';
 import 'mocha';
 
 const expect = chai.expect;
 
 describe('Server Model', () => {
 
-    let client: SSPClient;
+    let client: RSPClient;
     let port: number;
+
+    const wildflyRoot = path.resolve('./wildfly');
 
     before(function(done) {
         this.timeout(300000);
+        server.clearData();
         server.download()
         .then(() => { return server.getWildfly(); })
         .then(() => { return server.start(); })
         .then(async (result) => {
             port = result;
-            client = new SSPClient('localhost', port);
+            client = new RSPClient('localhost', port);
             await client.connect();
             done();
         });
@@ -26,6 +30,7 @@ describe('Server Model', () => {
     after(() => {
         client.disconnect();
         server.stop();
+        server.clearData();
     });
 
     it('wildfly servers should be supported', async () => {
@@ -96,9 +101,9 @@ describe('Server Model', () => {
         expect(attrs).equals(null);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
-    it('getRequiredAttributes handles invalid values', async () => {
-        await client.getServerTypeRequiredAttributes(null, 500);
+    it('getRequiredAttributes handles null values', async () => {
+        const attrs = await client.getServerTypeRequiredAttributes(null);
+        expect(attrs).equals(null);
     });
 
     it('getOptionalAttributes returns required attributes for a valid server type', async () => {
@@ -127,13 +132,13 @@ describe('Server Model', () => {
         expect(attrs).equals(null);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
-    it('getOptionalAttributes handles invalid values', async () => {
-        await client.getServerTypeOptionalAttributes(null, 500);
+    it('getOptionalAttributes handles null values', async () => {
+        const attrs = await client.getServerTypeOptionalAttributes(null);
+        expect(attrs).equals(null);
     });
 
     it('createServer creates a server given valid parameters', async () => {      
-        await client.createServerSync('../wildfly', 'fly');
+        await client.createServerSync(wildflyRoot, 'fly');
 
         const handles = await client.getServerHandles();
         await client.deleteServerSync(handles[0]);
@@ -146,17 +151,16 @@ describe('Server Model', () => {
     });
 
     it('createServer handles unknown server/bean', async () => {
-        const beans = await client.findServerBeans('.');
+        const beans = await client.findServerBeans(path.resolve('.'));
         const status = await client.createServerAsync(beans[0]);
 
         expect(status.severity).greaterThan(0);
-        expect(status.message).equals('Server Type null not found');
+        expect(status.message).contain('Parameter is invalid.');
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26257
     it('createServer handles non-unique server ids', async () => {
-        const beans = await client.findServerBeans('../wildfly');
-        const handle = await client.createServerSync('../wildfly', 'fly');
+        const beans = await client.findServerBeans(wildflyRoot);
+        const handle = await client.createServerSync(wildflyRoot, 'fly');
 
         const status = await client.createServerAsync(beans[0], 'fly');
         await client.deleteServerSync(handle);
@@ -165,7 +169,7 @@ describe('Server Model', () => {
     });
 
     it('deleteServer deletes an existing server', async () => {
-        const handle = await client.createServerSync('../wildfly', 'fly');
+        const handle = await client.createServerSync(wildflyRoot, 'fly');
         await client.deleteServerSync(handle);
 
         const handles = await client.getServerHandles();
@@ -173,7 +177,7 @@ describe('Server Model', () => {
     });
 
     it('deleteServer should handle deleting a non existing server', async () => {
-        const handle = await client.createServerSync('../wildfly', 'fly');
+        const handle = await client.createServerSync(wildflyRoot, 'fly');
         await client.deleteServerSync(handle);
 
         const status = await client.deleteServerAsync(handle);
@@ -196,16 +200,16 @@ describe('Server Model', () => {
         expect(status.message).equals(`Server not removed: ${handle.id}`);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('deleteServer should handle a null server handle', async () => {
-        const status = await client.deleteServerAsync(null, 500);
+        const status = await client.deleteServerAsync(null);
 
         expect(status.severity).greaterThan(0);
+        expect(status.message).not.equal('ok');
     });
 
     it('getServerHandles returns all server handles', async () => {
-        const handle1 = await client.createServerSync('../wildfly', 'fly');
-        const handle2 = await client.createServerSync('../wildfly', 'wfly');
+        const handle1 = await client.createServerSync(wildflyRoot, 'fly');
+        const handle2 = await client.createServerSync(wildflyRoot, 'wfly');
 
         const handles = await client.getServerHandles();
         await client.deleteServerSync(handle1);

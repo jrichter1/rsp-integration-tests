@@ -3,11 +3,12 @@ const decompress = require('decompress');
 const findJava = require('find-java-home');
 const path = require('path');
 const cp = require('child_process');
-const fs = require('fs');
+const fs = require('fs-extra');
 
 const baseUrl = 'http://download.jboss.org/jbosstools/adapters/snapshots/';
-const fileName = 'org.jboss.tools.ssp.distribution';
+const fileName = 'org.jboss.tools.rsp.distribution';
 const serverRoot = './server';
+const serverData = `${process.env.HOME}/.org.jboss.tools.rsp.data`;
 
 let serverProcess;
 
@@ -70,9 +71,14 @@ function getWildfly() {
     .catch(err => { throw err; });
 }
 
+function clearData() {
+    fs.removeSync(serverData);
+}
+
 module.exports = {
     download: downloadServer,
     start: startServer,
     stop: stopServer,
-    getWildfly: getWildfly
+    getWildfly: getWildfly,
+    clearData: clearData
 };

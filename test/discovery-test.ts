@@ -1,23 +1,26 @@
 import * as chai from 'chai';
-import { SSPClient, Protocol } from 'ssp-client';
+import { RSPClient, Protocol } from 'rsp-client';
 import * as server from '../resources/server-util';
 import 'mocha';
+import * as path from 'path';
 
 const expect = chai.expect;
+const wildFlyRoot = path.resolve('./wildfly');
 
 describe('Discovery', () => {
 
-    let client: SSPClient;
+    let client: RSPClient;
     let port: number;
 
     before(function(done) {
         this.timeout(300000);
+        server.clearData();
         server.download()
-        .then(() => { return server.getWildfly() })
-        .then(() => { return server.start() })
+        .then(() => { return server.getWildfly(); })
+        .then(() => { return server.start(); })
         .then(async (result) => {
             port = result;
-            client = new SSPClient('localhost', port);
+            client = new RSPClient('localhost', port);
             await client.connect();
             done();
         });
@@ -26,23 +29,20 @@ describe('Discovery', () => {
     after(() => {
         client.disconnect();
         server.stop();
+        server.clearData();
     });
 
     it('findServerBeans should find wildfly', async () => {
-       const beans = await client.findServerBeans('../wildfly');
+        const beans = await client.findServerBeans(wildFlyRoot);
 
-       expect(beans[0].serverAdapterTypeId).equals('org.jboss.ide.eclipse.as.wildfly.130');
-       expect(beans[0].specificType).equals('WildFly');
-       expect(beans[0].typeCategory).equals('WildFly');
-       expect(beans[0].fullVersion).equals('13.0.0.Final');
-    });
-
-    it('findServerBeans should find EAP', async () => {
-        // TODO
+        expect(beans[0].serverAdapterTypeId).equals('org.jboss.ide.eclipse.as.wildfly.130');
+        expect(beans[0].specificType).equals('WildFly');
+        expect(beans[0].typeCategory).equals('WildFly');
+        expect(beans[0].fullVersion).equals('13.0.0.Final');
     });
 
     it('findServerBeans should not find anything in a non-server folder', async () => {
-        const beans = await client.findServerBeans('.');
+        const beans = await client.findServerBeans(`${wildFlyRoot}/foo`);
 
         expect(beans[0].typeCategory).equals('UNKNOWN');
         expect(beans[0].version).empty;
@@ -51,13 +51,20 @@ describe('Discovery', () => {
         expect(beans[0].fullVersion).undefined;
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
-    it('findServerBeans handles invalid inputs', async () => {
-        const beans = await client.findServerBeans(null, 500);
+    it('findServerBeans handles null path', async () => {
+        const beans = await client.findServerBeans(null);
+
+        expect(beans).empty;
+    });
+
+    it('findServerBeans refuses relative paths', async () => {
+        const beans = await client.findServerBeans('../foo');
+
+        expect(beans).empty;
     });
 
     it('addDiscoveryPath should add a path to server', async () => {
-        const path = await client.addDiscoveryPathSync('foo');
+        const path = await client.addDiscoveryPathSync(wildFlyRoot);
         const filled = await client.getDiscoveryPaths();
         await client.removeDiscoveryPathSync(path);
 
@@ -65,7 +72,7 @@ describe('Discovery', () => {
     });
     
     it('addDiscoveryPath should handle the same path being added twice', async () => {
-        const path = await client.addDiscoveryPathSync('bar');
+        const path = await client.addDiscoveryPathSync(wildFlyRoot);
 
         const status = await client.addDiscoveryPathAsync(path.filepath);
         await client.removeDiscoveryPathSync(path);
@@ -74,25 +81,35 @@ describe('Discovery', () => {
         expect(status.severity).greaterThan(0);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
-    it('addDiscoveryPath should handle invalid inputs', async () => {
-        const path = await client.addDiscoveryPathSync(null, 500);
+    it('addDiscoveryPath should handle null paths', async () => {
+        const status = await client.addDiscoveryPathAsync(null);
+   
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
+    });
+
+    it('addDiscoveryPath should handle invalid paths', async () => {
+        const status = await client.addDiscoveryPathAsync('foo');
+
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
     });
 
     it('addDiscoveryPath should respond with a notification', (done) => {
+        const apath = path.resolve('.');
         const listener = (path: Protocol.DiscoveryPath) => {
-            if (path.filepath === 'apath') {
+            if (path.filepath === apath) {
                 client.removeListener('discoveryPathAdded', listener);
                 client.removeDiscoveryPathSync(path);
                 done();
             }
         }
         client.onDiscoveryPathAdded(listener);
-        client.addDiscoveryPathAsync('apath');
+        client.addDiscoveryPathAsync(apath);
     });
 
     it('removeDiscoveryPath should remove an existing path', async () => {
-        const path = await client.addDiscoveryPathSync('baz');
+        const path = await client.addDiscoveryPathSync(wildFlyRoot);
 
         const filled = await client.getDiscoveryPaths();
         expect(filled).deep.include(path);
@@ -108,25 +125,37 @@ describe('Discovery', () => {
         expect(status.severity).greaterThan(0);
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
-    it('removeDiscoveryPath should handle invalid inputs', async () => {
-        const status = await client.removeDiscoveryPathAsync(null, 500);
+    it('removeDiscoveryPath should handle null paths', async () => {
+        const status = await client.removeDiscoveryPathAsync(null);
+
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
+    });
+
+    it('removeDiscoveryPath should handle invalid paths', async () => {
+        const status = await client.removeDiscoveryPathAsync('null');
+
+        expect(status.message).not.equal('ok');
+        expect(status.severity).greaterThan(0);
     });
 
     it('removeDiscoveryPath should respond with a notification', (done) => {
+        const rpath = path.resolve('./server');
         const listener = (path: Protocol.DiscoveryPath) => {
-            if (path.filepath === 'rpath') {
+            if (path.filepath === rpath) {
                 client.removeListener('discoveryPathRemoved', listener);
                 done();
             }
         }
         client.onDiscoveryPathAdded(listener);
-        client.addDiscoveryPathAsync('rpath').then(() => { client.removeDiscoveryPathSync('rpath'); });        
+        client.addDiscoveryPathAsync(rpath).then(() => { 
+            client.removeDiscoveryPathSync(rpath);
+        });
     });
 
     it('getDiscoveryPaths should return all paths', async () => {
-        const path1 = await client.addDiscoveryPathSync('path1');
-        const path2 = await client.addDiscoveryPathSync('path2');
+        const path1 = await client.addDiscoveryPathSync(path.resolve('.'));
+        const path2 = await client.addDiscoveryPathSync(path.resolve('./test'));
 
         const filled = await client.getDiscoveryPaths();
         expect(filled).deep.include.members([path1, path2]);

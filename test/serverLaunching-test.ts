@@ -1,25 +1,32 @@
 import * as chai from 'chai';
-import { SSPClient, Protocol, ServerState } from 'ssp-client';
+import { RSPClient, Protocol, ServerState } from 'rsp-client';
 import * as server from '../resources/server-util';
 import 'mocha';
 import * as path from 'path';
-
 
 const expect = chai.expect;
 
 describe('Server Launcher', () => {
 
-    let client: SSPClient;
+    const serverType: Protocol.ServerType = {
+        description: 'servertype',
+        id: 'org.jboss.ide.eclipse.as.wildfly.130',
+        visibleName: 'WildFly 13.x'
+    };
+    const wildflyRoot = path.resolve('./wildfly');
+
+    let client: RSPClient;
     let port: number;
 
     before(function(done) {
         this.timeout(300000);
+        server.clearData();
         server.download()
-        .then(() => { return server.getWildfly() })
-        .then(() => { return server.start() })
+        .then(() => { return server.getWildfly(); })
+        .then(() => { return server.start(); })
         .then(async (result) => {
             port = result;
-            client = new SSPClient('localhost', port);
+            client = new RSPClient('localhost', port);
             await client.connect();
             done();
         });
@@ -28,22 +35,16 @@ describe('Server Launcher', () => {
     after(() => {
         client.disconnect();
         server.stop();
+        server.clearData();
     });
 
     it('getLaunchModes returns a list of launch modes for a server type', async () => {
-        const type: Protocol.ServerType = {
-            description: 'servertype',
-            id: 'org.jboss.ide.eclipse.as.wildfly.130',
-            visibleName: 'type'
-        };
-
-        const modes = await client.getServerLaunchModes(type);
+        const modes = await client.getServerLaunchModes(serverType);
         expect(modes).deep.include({ mode: 'run', desc: 'A launch mode indicating a simple run.' });
         expect(modes).deep.include({ mode: 'debug',
         desc: 'A launch mode indicating a debug launch, which can add the appropriate debugging flags or system properties as required.' });
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('getLaunchModes handles an invalid server type', async () => {
         const type: Protocol.ServerType = {
             description: 'servertype',
@@ -51,54 +52,47 @@ describe('Server Launcher', () => {
             visibleName: 'type'
         };
 
-        const modes = await client.getServerLaunchModes(type, 500);
+        const modes = await client.getServerLaunchModes(type);
+        expect(modes).null;
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('getLaunchModes handles a null server type', async () => {
-        const modes = await client.getServerLaunchModes(null, 500);
+        const modes = await client.getServerLaunchModes(null);
+        expect(modes).null;
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26281
     it('getRequiredLaunchAttributes returns attributes object for a valid input', async () => {
-        const handle = await client.createServerSync('../wildfly', 'wildfly1');
         const launchAttr: Protocol.LaunchAttributesRequest = {
-            id: handle.id,
+            serverTypeId: serverType.id,
             mode: 'run'
         };
         const attrs = await client.getServerRequiredLaunchAttributes(launchAttr);
-        await client.deleteServerSync(handle);
 
         expect(attrs).not.null;
     });
 
-    // passes probably because the method is broken and returns null anyway
     it('getRequiredLaunchAttributes handles invalid values', async () => {
         const launchAttr: Protocol.LaunchAttributesRequest = {
-            id: 'foo',
+            serverTypeId: 'foo',
             mode: 'run'
         };
         const attrs = await client.getServerRequiredLaunchAttributes(launchAttr);
         expect(attrs).null;
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26281
     it('getOptionalLaunchAttributes returns attributes object for a valid input', async () => {
-        const handle = await client.createServerSync('../wildfly', 'wildfly2');
         const launchAttr: Protocol.LaunchAttributesRequest = {
-            id: handle.id,
+            serverTypeId: serverType.id,
             mode: 'run'
         };
         const attrs = await client.getServerOptionalLaunchAttributes(launchAttr);
-        await client.deleteServerSync(handle);
 
         expect(attrs).not.null;
     });
 
-    // passes probably because the method is broken and returns null anyway
     it('getOptionalLaunchAttributes handles invalid values', async () => {
         const launchAttr: Protocol.LaunchAttributesRequest = {
-            id: 'foo',
+            serverTypeId: 'foo',
             mode: 'run'
         };
         const attrs = await client.getServerOptionalLaunchAttributes(launchAttr);
@@ -106,7 +100,7 @@ describe('Server Launcher', () => {
     });
 
     it('getLaunchCommand returns a cli command with valid parameters', async () => {
-        const handle = await client.createServerSync('../wildfly', 'wildfly3');
+        const handle = await client.createServerSync(wildflyRoot, 'wildfly3');
         const params: Protocol.LaunchParameters = {
             mode: 'run',
             params: {
@@ -137,14 +131,13 @@ describe('Server Launcher', () => {
         expect(command).null;
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('getLaunchCommand should handle null values', async () => {
-        const command = await client.getServerLaunchCommand(null, 500);
+        const command = await client.getServerLaunchCommand(null);
         expect(command).null;
     });
 
     it('serverStartingByClient passes with valid parameters', async () => {
-        const handle = await client.createServerSync('../wildfly', 'wildfly4');
+        const handle = await client.createServerSync(wildflyRoot, 'wildfly4');
         const params: Protocol.ServerStartingAttributes = {
             initiatePolling: false,
             request: {
@@ -183,13 +176,15 @@ describe('Server Launcher', () => {
         expect(status.message).equals('Server foo does not exist');
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('serverStartingByClient handles null parameters', async () => {
-        const status = await client.serverStartingByClient(null, 500);
+        const status = await client.serverStartingByClient(null);
+        
+        expect(status.severity).greaterThan(0);
+        expect(status.message).not.equals('ok');
     });
 
     it('serverStartedByClient passes with valid parameters', async () => {
-        const handle = await client.createServerSync('../wildfly', 'wildfly5');
+        const handle = await client.createServerSync(wildflyRoot, 'wildfly5');
         const params: Protocol.LaunchParameters = {
             mode: 'run',
             params: {
@@ -221,9 +216,11 @@ describe('Server Launcher', () => {
         expect(status.message).equals('Server foo does not exist');
     });
 
-    // fails with https://issues.jboss.org/browse/JBIDE-26254
     it('serverStartedByClient handles null parameters', async () => {
-        const status = await client.serverStartedByClient(null, 500);
+        const status = await client.serverStartedByClient(null);
+
+        expect(status.severity).greaterThan(0);
+        expect(status.message).not.equals('ok');
     });
 
     describe('Starting Servers', () => {
@@ -232,14 +229,14 @@ describe('Server Launcher', () => {
         let stop = false;
 
         beforeEach(async () => {
-            handle = await client.createServerSync(path.resolve('./wildfly'), 'wildfly6');
+            handle = await client.createServerSync(wildflyRoot, 'wildfly6');
             params = {
                 mode: 'run',
                 params: {
                     id: handle.id,
                     serverType: handle.type.id,
                     attributes: {
-                        'server.home.dir': path.resolve('./wildfly')
+                        'server.home.dir': wildflyRoot
                     }
                 }
             };
@@ -286,12 +283,11 @@ describe('Server Launcher', () => {
             expect(result.status.message).equals('Server foo does not exist');
         });
 
-        // fails with https://issues.jboss.org/browse/JBIDE-26254
         it('startServerAsync should handle null params', async () => {
             const result = await client.startServerAsync(null, 500);
 
             expect(result.status.severity).greaterThan(0);
-            expect(result.status.message).equals('Server foo does not exist');
+            expect(result.status.message).equals('Invalid Parameter');
         });
     });
 
@@ -299,7 +295,7 @@ describe('Server Launcher', () => {
         let handle: Protocol.ServerHandle;
 
         beforeEach(async function() {
-            handle = await client.createServerSync(path.resolve('./wildfly'), 'wildfly7');
+            handle = await client.createServerSync(wildflyRoot, 'wildfly7');
         });
 
         afterEach(async () => {
@@ -316,7 +312,7 @@ describe('Server Launcher', () => {
                         id: handle.id,
                         serverType: handle.type.id,
                         attributes: {
-                            'server.home.dir': path.resolve('./wildfly')
+                            'server.home.dir': wildflyRoot
                         }
                     }
                 };
@@ -343,9 +339,8 @@ describe('Server Launcher', () => {
             testit();
         });
 
-        // fails with https://issues.jboss.org/browse/JBIDE-26285
         it('stopServerAsync should handle stopping a stopped server', async () => {
-            const result = await client.stopServerAsync({ id: handle.id, force: true });
+            const result = await client.stopServerAsync({ id: handle.id, force: false });
 
             expect(result.severity).greaterThan(0);
             expect(result.message).not.equals('ok');
@@ -355,15 +350,14 @@ describe('Server Launcher', () => {
             const result = await client.stopServerAsync({ id: 'foo', force: true });
             
             expect(result.severity).greaterThan(0);
-            expect(result.message).equals('Server foo does not exist');
+            expect(result.message).contain('Server foo does not exist');
         });
 
-        // fails with https://issues.jboss.org/browse/JBIDE-26254
         it('stopServerAsync should handle stopping a null parameter', async () => {
-            const result = await client.stopServerAsync(null, 500);
+            const result = await client.stopServerAsync(null);
             
             expect(result.severity).greaterThan(0);
-            expect(result.message).equals('Server foo does not exist');
+            expect(result.message).contain('Parameter is invalid');
         });
     });
 });
